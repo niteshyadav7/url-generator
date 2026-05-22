@@ -6,6 +6,16 @@ Amazon link generator built with React and Vite.
 
 This project is frontend-only. It does not need backend services, Supabase, or Vercel environment variables.
 
+Hostinger:
+
+```bash
+cd client
+npm install
+npm run build
+```
+
+Upload the contents of `client/dist` to Hostinger `public_html`.
+
 Vercel settings:
 
 ```text

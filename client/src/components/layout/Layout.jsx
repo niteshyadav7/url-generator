@@ -1,10 +1,9 @@
 import React, { useEffect } from 'react';
-import { applyStoredTheme } from '../../lib/localStore';
 import { ExternalLink, Flame } from 'lucide-react';
 
 export default function Layout({ children }) {
   useEffect(() => {
-    applyStoredTheme();
+    document.documentElement.classList.add('dark');
   }, []);
 
   return (

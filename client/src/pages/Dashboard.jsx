@@ -3,7 +3,6 @@ import { extractASIN, isValidAmazonUrl, extractTitleSlug } from '../utils/asinEx
 import { detectMarketplace } from '../utils/marketplace';
 import { generateLinkUrl } from '../utils/linkGenerators';
 import { detectCategoryFromSlug } from '../utils/organicParams';
-import { getSettings, saveGeneratedProduct } from '../lib/localStore';
 import { 
   Copy, 
   Check, 
@@ -26,7 +25,7 @@ export default function Dashboard() {
   const [marketplace, setMarketplace] = useState(null);
   
   // Custom states for link generations
-  const [affiliateTag, setAffiliateTag] = useState('');
+  const [affiliateTag] = useState('');
   const [keywords] = useState([]);
   const [selectedTypes] = useState(['ORGANIC']);
   
@@ -50,8 +49,6 @@ export default function Dashboard() {
   // Results state
   const [generatedResults, setGeneratedResults] = useState([]);
   const [copiedIndex, setCopiedIndex] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [saveStatus, setSaveStatus] = useState('');
 
   // Bulk CSV engine states
   const [activeMode, setActiveMode] = useState('single'); // 'single' or 'bulk'
@@ -188,17 +185,6 @@ export default function Dashboard() {
     document.body.removeChild(link);
   };
 
-  // Load default settings from this browser.
-  useEffect(() => {
-    const settings = getSettings();
-
-    if (settings.affiliateTag) setAffiliateTag(settings.affiliateTag);
-    if (settings.defaultMarketplace) {
-      const defaultMarket = detectMarketplace(`https://${settings.defaultMarketplace}`);
-      setMarketplace(defaultMarket);
-    }
-  }, []);
-
   // Parse URL dynamically on input change
   useEffect(() => {
     if (urlInput) {
@@ -309,7 +295,6 @@ export default function Dashboard() {
     });
 
     setGeneratedResults(results);
-    setSaveStatus('');
   }, [
     asin,
     marketplace,
@@ -326,33 +311,6 @@ export default function Dashboard() {
     trackingKey,
     organicCategory
   ]);
-
-  // Save generated links to local browser storage.
-  const handleSaveToDashboard = async () => {
-    if (generatedResults.length === 0) return;
-    
-    setLoading(true);
-    setSaveStatus('');
-    try {
-      saveGeneratedProduct({
-        asin,
-        originalUrl: urlInput,
-        marketplace: marketplace.domain,
-        keywords,
-        links: generatedResults,
-        affiliateTag,
-        utmSource,
-        utmMedium,
-        utmCampaign,
-      });
-      setSaveStatus('success');
-    } catch (err) {
-      console.error(err);
-      setSaveStatus('error');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Copy helper
   const handleCopy = (url, index) => {
@@ -463,28 +421,7 @@ export default function Dashboard() {
                 <h3 className="font-semibold text-slate-100 flex items-center gap-2">
                   <Zap className="w-5 h-5 text-yellow-400 animate-pulse" /> Live Previews
                 </h3>
-                {generatedResults.length > 0 && (
-                  <button
-                    onClick={handleSaveToDashboard}
-                    disabled={loading}
-                    className="px-3 py-1.5 rounded-lg bg-violet-600/10 hover:bg-violet-600/20 text-violet-400 hover:text-white border border-violet-500/25 transition-all text-xs font-semibold"
-                  >
-                    {loading ? 'Saving...' : 'Save Links'}
-                  </button>
-                )}
               </div>
-
-              {saveStatus === 'success' && (
-                <div className="mb-4 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">
-                  Links saved to this browser.
-                </div>
-              )}
-              
-              {saveStatus === 'error' && (
-                <div className="mb-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-semibold">
-                  Unable to save links locally.
-                </div>
-              )}
 
               {generatedResults.length === 0 ? (
                 <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
