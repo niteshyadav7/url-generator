@@ -1,36 +1,17 @@
-# url-generator
+# AmzLinker Client
 
-Amazon link generator built with React and Vite.
+Frontend-only Amazon link generator built with React and Vite.
 
-## Deployment
+No backend or environment variables are required. Settings, saved links, and keyword tags are stored in browser `localStorage`.
 
-This project is frontend-only. It does not need backend services, Supabase, or Vercel environment variables.
-
-Hostinger:
+## Scripts
 
 ```bash
-cd client
 npm install
+npm run dev
 npm run build
 ```
 
-Upload the contents of `client/dist` to Hostinger `public_html`.
+## Vercel
 
-Vercel settings:
-
-```text
-Root Directory: client
-Build Command: npm run build
-Output Directory: dist
-Install Command: npm install
-```
-
-## Local Development
-
-```bash
-cd client
-npm install
-npm run dev
-```
-
-Generated links, keyword tags, and settings are saved in the browser with `localStorage`.
+Use `client` as the root directory and `dist` as the output directory.
