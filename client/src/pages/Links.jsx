@@ -1,59 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
-import { useAuthStore } from '../stores/authStore';
+import { deleteLink, getLinks } from '../lib/localStore';
 import { Link2, Search, Trash2, Copy, Check, ExternalLink, Calendar } from 'lucide-react';
 
 export default function Links() {
-  const { user } = useAuthStore();
   const [links, setLinks] = useState([]);
   const [search, setSearch] = useState('');
   const [copiedId, setCopiedId] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (user) {
-      fetchLinks();
-    }
-  }, [user]);
+    fetchLinks();
+  }, []);
 
-  const fetchLinks = async () => {
+  const fetchLinks = () => {
     try {
-      const { data, error } = await supabase
-        .from('generated_links')
-        .select(`
-          id,
-          url,
-          link_type,
-          click_count,
-          created_at,
-          products (asin, marketplace)
-        `)
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setLinks(data || []);
+      setLinks(getLinks());
     } catch (err) {
       console.error(err);
-      // Mock data for pure client-side experience
-      setLinks([
-        {
-          id: '1',
-          url: 'https://www.amazon.in/dp/B0CJRTFY9F?tag=mytag-21',
-          link_type: 'AFFILIATE',
-          click_count: 42,
-          created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
-          products: { asin: 'B0CJRTFY9F', marketplace: 'amazon.in' }
-        },
-        {
-          id: '2',
-          url: 'https://www.amazon.in/dp/B0CJRTFY9F?keywords=instant+mask',
-          link_type: 'KEYWORD',
-          click_count: 15,
-          created_at: new Date(Date.now() - 3600000 * 5).toISOString(),
-          products: { asin: 'B0CJRTFY9F', marketplace: 'amazon.in' }
-        }
-      ]);
+      setLinks([]);
     } finally {
       setLoading(false);
     }
@@ -65,14 +29,12 @@ export default function Links() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = (id) => {
     try {
-      const { error } = await supabase.from('generated_links').delete().eq('id', id);
-      if (error) throw error;
-      setLinks(links.filter(l => l.id !== id));
+      setLinks(deleteLink(id));
     } catch (err) {
       console.error(err);
-      setLinks(links.filter(l => l.id !== id)); // optimistically delete in mockup
+      setLinks(links.filter(l => l.id !== id));
     }
   };
 
@@ -89,7 +51,7 @@ export default function Links() {
           <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
             <Link2 className="w-5 h-5 text-violet-400" /> Generated Links
           </h2>
-          <p className="text-xs text-slate-400 mt-1">Manage and track your generated Amazon link library.</p>
+          <p className="text-xs text-slate-400 mt-1">Manage your generated Amazon link library saved in this browser.</p>
         </div>
 
         {/* Search */}
@@ -106,7 +68,7 @@ export default function Links() {
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-slate-500 text-xs">Loading link database...</div>
+        <div className="text-center py-12 text-slate-500 text-xs">Loading saved links...</div>
       ) : filteredLinks.length === 0 ? (
         <div className="glass-panel border border-slate-800/40 rounded-2xl p-12 text-center">
           <p className="text-slate-400 text-sm font-semibold">No Links Found</p>
@@ -126,7 +88,7 @@ export default function Links() {
                       <Calendar className="w-3 h-3" /> {new Date(link.created_at).toLocaleDateString()}
                     </span>
                     <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                      {link.click_count || 0} clicks
+                      saved local
                     </span>
                   </div>
                 </div>

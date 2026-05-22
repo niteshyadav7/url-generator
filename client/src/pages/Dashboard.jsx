@@ -2,15 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { extractASIN, isValidAmazonUrl, extractTitleSlug } from '../utils/asinExtractor';
 import { detectMarketplace } from '../utils/marketplace';
 import { generateLinkUrl } from '../utils/linkGenerators';
-import { supabase } from '../lib/supabase';
-import { AMAZON_CATEGORIES, detectCategoryFromSlug } from '../utils/organicParams';
-import { useAuthStore } from '../stores/authStore';
+import { detectCategoryFromSlug } from '../utils/organicParams';
+import { getSettings, saveGeneratedProduct } from '../lib/localStore';
 import { 
-  Plus, 
-  Trash2, 
   Copy, 
   Check, 
-  HelpCircle, 
   Link2, 
   Zap, 
   Sparkles, 
@@ -18,7 +14,6 @@ import {
   Hash, 
   AlertCircle,
   Upload,
-  FileText,
   Download,
   CheckCircle,
   Loader2,
@@ -26,35 +21,31 @@ import {
 } from 'lucide-react';
  
 export default function Dashboard() {
-  const { user } = useAuthStore();
   const [urlInput, setUrlInput] = useState('');
   const [asin, setAsin] = useState('');
   const [marketplace, setMarketplace] = useState(null);
   
   // Custom states for link generations
   const [affiliateTag, setAffiliateTag] = useState('');
-  const [keywords, setKeywords] = useState([]);
-  const [keywordInput, setKeywordInput] = useState('');
-  const [selectedTypes, setSelectedTypes] = useState(['ORGANIC']);
+  const [keywords] = useState([]);
+  const [selectedTypes] = useState(['ORGANIC']);
   
   // Custom tracking / link builder states
-  const [customParams, setCustomParams] = useState([]);
-  const [newParamKey, setNewParamKey] = useState('');
-  const [newParamVal, setNewParamVal] = useState('');
-  const [customTemplate, setCustomTemplate] = useState('');
+  const [customParams] = useState([]);
+  const [customTemplate] = useState('');
   
   // Bulk Link Count States
-  const [linkCount, setLinkCount] = useState(1);
-  const [trackingKey, setTrackingKey] = useState('subid');
+  const [linkCount] = useState(1);
+  const [trackingKey] = useState('subid');
 
   // Organic link states
   const [titleSlug, setTitleSlug] = useState('');
   const [organicCategory, setOrganicCategory] = useState('aps');
   
   // UTM parameters
-  const [utmSource, setUtmSource] = useState('');
-  const [utmMedium, setUtmMedium] = useState('');
-  const [utmCampaign, setUtmCampaign] = useState('');
+  const [utmSource] = useState('');
+  const [utmMedium] = useState('');
+  const [utmCampaign] = useState('');
 
   // Results state
   const [generatedResults, setGeneratedResults] = useState([]);
@@ -197,21 +188,16 @@ export default function Dashboard() {
     document.body.removeChild(link);
   };
 
-  // Load default settings if profile exists
+  // Load default settings from this browser.
   useEffect(() => {
-    if (user) {
-      supabase.from('profiles').select('affiliate_tag, default_marketplace').eq('id', user.id).single()
-        .then(({ data }) => {
-          if (data) {
-            if (data.affiliate_tag) setAffiliateTag(data.affiliate_tag);
-            if (data.default_marketplace) {
-              const defaultMarket = detectMarketplace(`https://${data.default_marketplace}`);
-              setMarketplace(defaultMarket);
-            }
-          }
-        });
+    const settings = getSettings();
+
+    if (settings.affiliateTag) setAffiliateTag(settings.affiliateTag);
+    if (settings.defaultMarketplace) {
+      const defaultMarket = detectMarketplace(`https://${settings.defaultMarketplace}`);
+      setMarketplace(defaultMarket);
     }
-  }, [user]);
+  }, []);
 
   // Parse URL dynamically on input change
   useEffect(() => {
@@ -246,30 +232,6 @@ export default function Dashboard() {
       setOrganicCategory('aps');
     }
   }, [urlInput]);
-
-  // Add keyword tag
-  const handleAddKeyword = (e) => {
-    e.preventDefault();
-    const clean = keywordInput.trim().toLowerCase();
-    if (clean && !keywords.includes(clean)) {
-      setKeywords([...keywords, clean]);
-      setKeywordInput('');
-    }
-  };
-
-  // Remove keyword tag
-  const handleRemoveKeyword = (indexToRemove) => {
-    setKeywords(keywords.filter((_, idx) => idx !== indexToRemove));
-  };
-
-  // Toggle selected link types
-  const toggleType = (type) => {
-    if (selectedTypes.includes(type)) {
-      setSelectedTypes(selectedTypes.filter(t => t !== type));
-    } else {
-      setSelectedTypes([...selectedTypes, type]);
-    }
-  };
 
   // Live Reactive Generation of links
   useEffect(() => {
@@ -365,54 +327,24 @@ export default function Dashboard() {
     organicCategory
   ]);
 
-  // Handle generation action
-  const handleGenerate = (e) => {
-    e.preventDefault();
-    // Fully handled by live reactive useEffect above
-  };
-
-  // Save to Database (proactively support server integrations)
+  // Save generated links to local browser storage.
   const handleSaveToDashboard = async () => {
-    if (!user || generatedResults.length === 0) return;
+    if (generatedResults.length === 0) return;
     
     setLoading(true);
     setSaveStatus('');
     try {
-      // 1. Insert product record
-      const { data: product, error: productError } = await supabase
-        .from('products')
-        .insert({
-          user_id: user.id,
-          asin,
-          original_url: urlInput,
-          marketplace: marketplace.domain,
-          keywords: keywords,
-          total_links: generatedResults.length
-        })
-        .select()
-        .single();
-
-      if (productError) throw productError;
-
-      // 2. Insert links records
-      const linksPayload = generatedResults.map(item => ({
-        product_id: product.id,
-        user_id: user.id,
-        link_type: item.type,
-        url: item.url,
-        keywords: keywords.length > 0 ? keywords : null,
-        affiliate_tag: affiliateTag || null,
-        utm_source: utmSource || null,
-        utm_medium: utmMedium || null,
-        utm_campaign: utmCampaign || null
-      }));
-
-      const { error: linksError } = await supabase
-        .from('generated_links')
-        .insert(linksPayload);
-
-      if (linksError) throw linksError;
-
+      saveGeneratedProduct({
+        asin,
+        originalUrl: urlInput,
+        marketplace: marketplace.domain,
+        keywords,
+        links: generatedResults,
+        affiliateTag,
+        utmSource,
+        utmMedium,
+        utmCampaign,
+      });
       setSaveStatus('success');
     } catch (err) {
       console.error(err);
@@ -429,17 +361,6 @@ export default function Dashboard() {
     setTimeout(() => setCopiedIndex(null), 2000);
   };
 
-  const linkTypesDef = [
-    { type: 'ORGANIC', label: '🔍 Organic Search Link', desc: 'Realistic Amazon search click — unique session per link' },
-    { type: 'CLEAN', label: 'Clean Link', desc: 'Removes all trackers & tags' },
-    { type: 'KEYWORD', label: 'Keyword Targeted', desc: 'Appends keywords parameter' },
-    { type: 'AFFILIATE', label: 'Affiliate Tagged', desc: 'Adds affiliate associate tag' },
-    { type: 'AFFILIATE_KEYWORD', label: 'Affiliate + Keywords', desc: 'Combines tags and terms' },
-    { type: 'UTM', label: 'UTM Trackers', desc: 'Standard GA source/campaign tags' },
-    { type: 'SEARCH_PAGE', label: 'Store Search URL', desc: 'Points to marketplace search terms' },
-    { type: 'CUSTOM_PARAMS', label: 'Custom Params Link', desc: 'Appends custom query parameters' },
-    { type: 'CUSTOM_TEMPLATE', label: 'Custom Branded Link', desc: 'Uses your custom domain template' },
-  ];
 
   return (
     <div className="space-y-6">
@@ -548,20 +469,20 @@ export default function Dashboard() {
                     disabled={loading}
                     className="px-3 py-1.5 rounded-lg bg-violet-600/10 hover:bg-violet-600/20 text-violet-400 hover:text-white border border-violet-500/25 transition-all text-xs font-semibold"
                   >
-                    {loading ? 'Saving...' : 'Save to Dashboard'}
+                    {loading ? 'Saving...' : 'Save Links'}
                   </button>
                 )}
               </div>
 
               {saveStatus === 'success' && (
                 <div className="mb-4 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">
-                  Successfully saved product and links to database!
+                  Links saved to this browser.
                 </div>
               )}
               
               {saveStatus === 'error' && (
                 <div className="mb-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-semibold">
-                  Unable to save. Please check your Supabase credentials.
+                  Unable to save links locally.
                 </div>
               )}
 

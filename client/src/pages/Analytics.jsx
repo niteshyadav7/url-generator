@@ -1,5 +1,5 @@
 import React from 'react';
-import { BarChart3, TrendingUp, Laptop, Smartphone, Users, Globe2 } from 'lucide-react';
+import { BarChart3, TrendingUp, Users, Globe2 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
   AreaChart, 

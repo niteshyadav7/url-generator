@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
-import { useAuthStore } from '../stores/authStore';
-import { Hash, Plus, Trash2, Search, Tag, AlertCircle } from 'lucide-react';
+import { addKeyword, deleteKeyword, getKeywords } from '../lib/localStore';
+import { Hash, Plus, Trash2, Search, Tag } from 'lucide-react';
 
 export default function Keywords() {
-  const { user } = useAuthStore();
   const [keywords, setKeywords] = useState([]);
   const [name, setName] = useState('');
   const [category, setCategory] = useState('general');
@@ -12,30 +10,15 @@ export default function Keywords() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (user) {
-      fetchKeywords();
-    }
-  }, [user]);
+    fetchKeywords();
+  }, []);
 
-  const fetchKeywords = async () => {
+  const fetchKeywords = () => {
     try {
-      const { data, error } = await supabase
-        .from('keywords')
-        .select('*')
-        .order('usage_count', { ascending: false });
-
-      if (error) throw error;
-      setKeywords(data || []);
+      setKeywords(getKeywords());
     } catch (err) {
       console.error(err);
-      // Mock data for beautiful offline experience
-      setKeywords([
-        { id: '1', name: 'beauty care', usage_count: 14, category: 'beauty' },
-        { id: '2', name: 'skincare serum', usage_count: 9, category: 'beauty' },
-        { id: '3', name: 'ergonomic chair', usage_count: 5, category: 'furniture' },
-        { id: '4', name: 'mechanical keyboard', usage_count: 12, category: 'electronics' },
-        { id: '5', name: 'usb hub adapter', usage_count: 3, category: 'electronics' }
-      ]);
+      setKeywords([]);
     } finally {
       setLoading(false);
     }
@@ -47,39 +30,18 @@ export default function Keywords() {
     if (!cleanName) return;
 
     try {
-      const { data, error } = await supabase
-        .from('keywords')
-        .insert({
-          user_id: user.id,
-          name: cleanName,
-          category: category,
-          usage_count: 1
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      setKeywords([data, ...keywords]);
+      addKeyword({ name: cleanName, category });
+      setKeywords(getKeywords());
     } catch (err) {
       console.error(err);
-      // Optimistic mock state
-      const mockNew = {
-        id: Math.random().toString(),
-        name: cleanName,
-        usage_count: 1,
-        category: category
-      };
-      setKeywords([mockNew, ...keywords]);
     } finally {
       setName('');
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = (id) => {
     try {
-      const { error } = await supabase.from('keywords').delete().eq('id', id);
-      if (error) throw error;
-      setKeywords(keywords.filter(k => k.id !== id));
+      setKeywords(deleteKeyword(id));
     } catch (err) {
       console.error(err);
       setKeywords(keywords.filter(k => k.id !== id));

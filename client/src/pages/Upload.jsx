@@ -3,33 +3,25 @@ import { useDropzone } from 'react-dropzone';
 import { 
   UploadCloud, 
   FileSpreadsheet, 
-  CheckCircle, 
   AlertCircle, 
   Download, 
   ArrowRight, 
   Play, 
-  Trash2, 
   Copy, 
   Check, 
-  Sparkles, 
-  Globe, 
-  Hash, 
   Layers, 
   FileDown, 
   Settings as SettingsIcon,
   ChevronDown,
   ChevronUp,
-  Save,
-  Zap
+  Save
 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
-import { useAuthStore } from '../stores/authStore';
+import { getSettings, saveGeneratedProduct } from '../lib/localStore';
 import { extractASIN, isValidAmazonUrl } from '../utils/asinExtractor';
 import { detectMarketplace } from '../utils/marketplace';
 import { generateLinkUrl } from '../utils/linkGenerators';
 
 export default function Upload() {
-  const { user } = useAuthStore();
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -67,17 +59,13 @@ export default function Upload() {
     { type: 'CUSTOM_TEMPLATE', label: 'Custom Branded Link', desc: 'Uses your custom domain template' },
   ];
 
-  // Load default affiliate settings if profile exists
+  // Load default affiliate settings from this browser.
   useEffect(() => {
-    if (user) {
-      supabase.from('profiles').select('affiliate_tag').eq('id', user.id).single()
-        .then(({ data }) => {
-          if (data && data.affiliate_tag) {
-            setGlobalAffiliateTag(data.affiliate_tag);
-          }
-        });
+    const settings = getSettings();
+    if (settings.affiliateTag) {
+      setGlobalAffiliateTag(settings.affiliateTag);
     }
-  }, [user]);
+  }, []);
 
   const onDrop = useCallback((acceptedFiles) => {
     if (acceptedFiles.length > 0) {
@@ -339,9 +327,9 @@ export default function Upload() {
     document.body.removeChild(link);
   };
 
-  // Database Save Logic (Saving whole batch)
+  // Save the whole batch to local browser storage.
   const handleSaveBatch = async () => {
-    if (!user || parsedProducts.length === 0) return;
+    if (parsedProducts.length === 0) return;
 
     setSaveLoading(true);
     setSaveStatus('');
@@ -350,40 +338,17 @@ export default function Upload() {
       const validProducts = parsedProducts.filter(p => p.isValid);
       
       for (const p of validProducts) {
-        // 1. Insert product record
-        const { data: product, error: productError } = await supabase
-          .from('products')
-          .insert({
-            user_id: user.id,
-            asin: p.asin,
-            original_url: p.originalUrl,
-            marketplace: p.marketplace,
-            keywords: p.keywords,
-            total_links: p.links.length
-          })
-          .select()
-          .single();
-
-        if (productError) throw productError;
-
-        // 2. Insert links records
-        const linksPayload = p.links.map(item => ({
-          product_id: product.id,
-          user_id: user.id,
-          link_type: item.type,
-          url: item.url,
-          keywords: p.keywords.length > 0 ? p.keywords : null,
-          affiliate_tag: p.affiliateTag || null,
-          utm_source: p.utmSource || null,
-          utm_medium: p.utmMedium || null,
-          utm_campaign: p.utmCampaign || null
-        }));
-
-        const { error: linksError } = await supabase
-          .from('generated_links')
-          .insert(linksPayload);
-
-        if (linksError) throw linksError;
+        saveGeneratedProduct({
+          asin: p.asin,
+          originalUrl: p.originalUrl,
+          marketplace: p.marketplace,
+          keywords: p.keywords,
+          links: p.links,
+          affiliateTag: p.affiliateTag,
+          utmSource: p.utmSource,
+          utmMedium: p.utmMedium,
+          utmCampaign: p.utmCampaign,
+        });
       }
 
       setSaveStatus('success');
@@ -668,12 +633,12 @@ export default function Upload() {
 
               {saveStatus === 'success' && (
                 <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">
-                  Batch saved successfully!
+                  Batch saved to this browser.
                 </div>
               )}
               {saveStatus === 'error' && (
                 <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-semibold">
-                  Unable to save batch automatically.
+                  Unable to save batch locally.
                 </div>
               )}
 
@@ -762,15 +727,13 @@ export default function Upload() {
                 </table>
               </div>
 
-              {user && (
-                <button
-                  onClick={handleSaveBatch}
-                  disabled={saveLoading}
-                  className="w-full py-3.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white rounded-xl text-xs font-semibold shadow-md flex items-center justify-center gap-1.5 transition-all mt-4"
-                >
-                  <Save className="w-4 h-4" /> {saveLoading ? 'Saving entire batch to dashboard...' : 'Save Entire Batch to Dashboard'}
-                </button>
-              )}
+              <button
+                onClick={handleSaveBatch}
+                disabled={saveLoading}
+                className="w-full py-3.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white rounded-xl text-xs font-semibold shadow-md flex items-center justify-center gap-1.5 transition-all mt-4"
+              >
+                <Save className="w-4 h-4" /> {saveLoading ? 'Saving entire batch...' : 'Save Entire Batch'}
+              </button>
 
             </div>
           )}

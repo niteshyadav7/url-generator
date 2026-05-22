@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
-import { useAuthStore } from '../stores/authStore';
-import { Settings as SettingsIcon, Save, Key, Shield, User, Sparkles } from 'lucide-react';
+import { getSettings, saveSettings } from '../lib/localStore';
+import { Settings as SettingsIcon, Save, Key, Shield, User } from 'lucide-react';
 
 export default function Settings() {
-  const { user } = useAuthStore();
-  const [affiliateTag, setAffiliateTag] = useState('');
-  const [marketplace, setMarketplace] = useState('amazon.in');
-  const [theme, setTheme] = useState('dark');
+  const initialSettings = getSettings();
+  const [affiliateTag, setAffiliateTag] = useState(initialSettings.affiliateTag || '');
+  const [marketplace, setMarketplace] = useState(initialSettings.defaultMarketplace || 'amazon.in');
+  const [theme, setTheme] = useState(initialSettings.theme || 'dark');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [msgType, setMsgType] = useState('success');
@@ -22,56 +21,23 @@ export default function Settings() {
     }
   }, [theme]);
 
-  useEffect(() => {
-    if (user) {
-      fetchProfile();
-    }
-  }, [user]);
-
-  const fetchProfile = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('affiliate_tag, default_marketplace, theme_preference')
-        .eq('id', user.id)
-        .single();
-
-      if (error) throw error;
-      if (data) {
-        if (data.affiliate_tag) setAffiliateTag(data.affiliate_tag);
-        if (data.default_marketplace) setMarketplace(data.default_marketplace);
-        if (data.theme_preference) setTheme(data.theme_preference);
-      }
-    } catch (err) {
-      console.warn('Profile read warning (using local defaults):', err.message);
-    }
-  };
-
   const handleSave = async (e) => {
     e.preventDefault();
     setLoading(true);
     setMessage('');
 
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .upsert({
-          id: user.id,
-          email: user.email,
-          affiliate_tag: affiliateTag || null,
-          default_marketplace: marketplace,
-          theme_preference: theme,
-          updated_at: new Date().toISOString()
-        });
-
-      if (error) throw error;
+      saveSettings({
+        affiliateTag,
+        defaultMarketplace: marketplace,
+        theme,
+      });
       setMsgType('success');
-      setMessage('Preferences saved successfully!');
+      setMessage('Preferences saved to this browser.');
     } catch (err) {
       console.error(err);
-      // Offline fallback success indication
-      setMsgType('success');
-      setMessage('Preferences saved successfully in offline mode!');
+      setMsgType('error');
+      setMessage('Unable to save preferences locally.');
     } finally {
       setLoading(false);
     }
@@ -83,7 +49,7 @@ export default function Settings() {
         <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
           <SettingsIcon className="w-5 h-5 text-violet-400" /> System Settings
         </h2>
-        <p className="text-xs text-slate-400 mt-1">Configure default affiliate accounts, routing domains, and regional marketplaces.</p>
+        <p className="text-xs text-slate-400 mt-1">Configure default affiliate accounts and regional marketplaces for this browser.</p>
       </div>
 
       {message && (
@@ -103,7 +69,7 @@ export default function Settings() {
           {[
             { label: 'General Configuration', icon: User, active: true },
             { label: 'Marketplaces Defaults', icon: Shield, active: false },
-            { label: 'API & Edge Webhooks', icon: Key, active: false },
+            { label: 'Browser Storage', icon: Key, active: false },
           ].map((item, idx) => {
             const Icon = item.icon;
             return (

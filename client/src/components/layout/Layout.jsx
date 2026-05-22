@@ -1,41 +1,10 @@
 import React, { useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
+import { applyStoredTheme } from '../../lib/localStore';
 import { ExternalLink, Flame } from 'lucide-react';
 
 export default function Layout({ children }) {
   useEffect(() => {
-    // 1. Instantly apply theme from localStorage to avoid visual flashes
-    const savedTheme = localStorage.getItem('theme') || 'dark';
-    if (savedTheme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-
-    // 2. Sync from Supabase profiles in the background
-    const syncTheme = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session && session.user) {
-          const { data } = await supabase
-            .from('profiles')
-            .select('theme_preference')
-            .eq('id', session.user.id)
-            .single();
-          if (data && data.theme_preference) {
-            localStorage.setItem('theme', data.theme_preference);
-            if (data.theme_preference === 'dark') {
-              document.documentElement.classList.add('dark');
-            } else {
-              document.documentElement.classList.remove('dark');
-            }
-          }
-        }
-      } catch (err) {
-        // Silent fallback for offline first
-      }
-    };
-    syncTheme();
+    applyStoredTheme();
   }, []);
 
   return (
@@ -83,4 +52,3 @@ export default function Layout({ children }) {
     </div>
   );
 }
-
